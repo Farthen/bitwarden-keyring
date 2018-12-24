@@ -2,6 +2,27 @@ from lib import api
 import os, sys
 import getpass
 
+def getdv(element, *keys, default=None):
+    '''
+    Check if *keys (nested) exists in `element` (dict) and then return value or None.
+    If Element is None it also returns default,
+    '''
+    if type(element) is not dict:
+        raise AttributeError('keys_exists() expects dict as first argument.')
+    if len(keys) == 0:
+        raise AttributeError('keys_exists() expects at least two arguments, one given.')
+
+    _element = element
+    for key in keys:
+        try:
+            _element = _element[key]
+        except KeyError:
+            return default
+    if _element is None:
+        return default
+    return _element
+    
+
 class UI(object):
     def __init__(self, bw):
         self.bw = bw
@@ -30,8 +51,8 @@ class UI(object):
     def display_credential(self, match, password=False):
         if match['type'] == 1:
             if password:
-                return f"{match.get('name', '<no name>')} - {match['login'].get('username', '<no username>')} - {match['login'].get('password', '<no password>')}"
-            return f"{match.get('name', 'no name')} - {match['login'].get('username', '<no username>')}"
+                return f"{match.get('name', '<no name>')} - {getdv(match, 'login', 'username', default='<no username>')} - {getdv(match, 'login', 'password', default='<no password>')}"
+            return f"{match.get('name', '<no name>')} - {getdv(match, 'login', 'username', default='<no username>')}"
         elif match['type'] == 2:
             return f"{match.get('name', '<no name>')}\n{match['notes'] if match['notes'] else '<no notes content>'}"
 
@@ -47,12 +68,19 @@ class UI(object):
             return self.select_single_match(matches)
         except ValueError:
             return self.select_from_multiple_matches(matches)
+            
+    def get_value(self, match):
+        # Returns passwords or note content depending on the type
+        if match['type'] == 1 and match['login']:
+            return getdv(match, 'login', 'password', default='<no password>')
+        elif match['type'] == 2:
+            return getdv(match, 'notes', default='<no notes content>')
     
     def output_match(self, matches):
         if not matches or len(matches) == 0:
             print("No matches found")
             return
-        print(self.select_match(matches)["login"]["password"])
+        print(self.get_value(self.select_match(matches)))
 
     def confirm_delete(self, matches):
         match = self.select_match(matches)
@@ -147,8 +175,5 @@ if __name__ == '__main__':
     ui.unlock()
     args.func(args)
 
-    print(bw.extract_logged_user())
-
-    
 
 

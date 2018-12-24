@@ -123,7 +123,6 @@ class Wrapper(object):
             cli_args += ["--session", self.session]
 
         cli_args += list(args)
-        print(cli_args)
 
         try:
             result = subprocess.run(
@@ -207,7 +206,6 @@ class Query(object):
         payload = self.encode(template)
 
         self.bw.bw("create", "item", payload)
-        print("Created.")
 
     def set_password(self, service, username, password):
         template_str = self.bw.bw("get", "template", "item")
@@ -228,7 +226,6 @@ class Query(object):
         payload = self.encode(template)
 
         self.bw.bw("create", "item", payload)
-        print("Created.")
         
     def real_delete_credential(self, credential):
         self.bw.bw("delete", "item", credential["id"])
