@@ -1,6 +1,9 @@
+#!/usr/bin/env python3
+
 from lib import api
 import os, sys
 import getpass
+import subprocess
 
 def getdv(element, *keys, default=None):
     '''
@@ -76,11 +79,11 @@ class UI(object):
         elif match['type'] == 2:
             return getdv(match, 'notes', default='<no notes content>')
     
-    def output_match(self, matches):
+    def get_match(self, matches):
         if not matches or len(matches) == 0:
             print("No matches found")
             return
-        print(self.get_value(self.select_match(matches)))
+        return self.get_value(self.select_match(matches))
 
     def confirm_delete(self, matches):
         match = self.select_match(matches)
@@ -112,7 +115,46 @@ class UI(object):
     
     def command_get(self, args):
         match = self.run_get(args)
-        self.output_match(match)
+        print(self.get_match(match))
+        
+    def command_clip(self, args):
+        match = self.run_get(args)
+        result = self.get_match(match)
+        if result:
+            try:
+                old_clipboard = subprocess.run(['wl-paste', '-n'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True).stdout[:-1]
+            except subprocess.CalledProcessError as exc:
+                old_clipboard = None
+            # run in the foreground with 30 seconds timeout. as soon as the process is killed the clipboard is emptied
+            try:
+                pid = os.fork() 
+                if pid > 0:
+                    # exit first parent
+                    return
+            except OSError as e: 
+                sys.stderr.write(
+                    "fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
+                return
+                
+            # decouple from parent environment
+            os.chdir("/") 
+            os.setsid() 
+            os.umask(0) 
+
+            # do second fork
+            try: 
+                pid = os.fork() 
+                if pid > 0:
+                    # exit from second parent
+                    sys.exit(0) 
+            except OSError as e: 
+                sys.stderr.write(
+                    "fork #2 failed: %d (%s)\n" % (e.errno, e.strerror))
+                sys.exit(1) 
+            try:
+                subprocess.run(['wl-copy', '-f'], input=result.encode('utf8'), timeout=30)
+            except subprocess.TimeoutExpired:
+                pass
         
     def command_rm(self, args):
         match = self.run_get(args)
@@ -161,6 +203,12 @@ if __name__ == '__main__':
     parser_get.add_argument('service', type=str, help='Service name')
     parser_get.add_argument('username', type=str, nargs='?', help='The username')
     parser_get.set_defaults(func=ui.command_get)
+    
+    parser_clip = subparsers.add_parser('clip', help='Copy a password to the clipboard', aliases=['c', 'cl', 'cli'])
+    parser_clip.add_argument('service', type=str, help='Service name')
+    parser_clip.add_argument('username', type=str, nargs='?', help='The username')
+    parser_clip.set_defaults(func=ui.command_clip)
+    
 
     parser_rm = subparsers.add_parser('rm', help='Delete a password', aliases=['r', 'd', 'de', 'del'])
     parser_rm.add_argument('service', type=str, help='Service name')
